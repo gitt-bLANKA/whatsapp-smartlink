@@ -17,9 +17,8 @@
 <body>
   <main>
     <h1>Weiterleitung zu WhatsApp…</h1>
-    <p class="muted">Falls nichts passiert, nutze einen der folgenden Links:</p>
-    <p>
-      <a id="manualPrimary" href="https://api.whatsapp.com/send?phone=4915170086074" rel="noopener">Primärer Link öffnen</a> ·
+    <p class="muted">Falls nichts passiert, tippe hier: 
+      <a id="manualPrimary" href="#" rel="noopener">Primärer Link</a> · 
       <a id="manualStore" href="#" rel="noopener" target="_blank">App installieren</a>
     </p>
     <noscript>
@@ -30,16 +29,18 @@
 
   <script>
     (function(){
+      // --- UA-Erkennung ---
       const U = navigator.userAgent || '';
       const isAndroid = /Android/i.test(U);
       const isiOS     = /iPhone|iPad|iPod/i.test(U);
-      // Android-WebView-Erkennung: "; wv)" oder typische WebView-Signatur
+      // Android-WebView: erkennbar an "; wv)" oder typischer WebView-Signatur
       const isAndroidWebView = isAndroid && (/; wv\)/i.test(U) || /Version\/[\d.]+\s*Chrome\/[\d.]+\s*Mobile\s*Safari\/[\d.]+/i.test(U));
-  
+
+      // --- Parameter ---
       const qs = new URLSearchParams(location.search);
       const PHONE = (qs.get('phone') || '4915170086074').replace(/\s|\+/g,'');
       const TEXT  = (qs.get('text')  || '').trim();
-  
+
       function apiUrl(phone, text){
         const base = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(phone);
         return text ? base + '&text=' + encodeURIComponent(text) : base;
@@ -53,35 +54,44 @@
         if (isiOS)     return 'https://apps.apple.com/app/whatsapp-messenger/id310633997';
         return 'https://www.whatsapp.com/download';
       }
-  
-      // Manuelle Fallback-Links setzen (falls vorhanden)
-      var manualPrimary = document.getElementById('manualPrimary');
-      var manualStore   = document.getElementById('manualStore');
+
+      // Manuelle Fallback-Links setzen
+      const manualPrimary = document.getElementById('manualPrimary');
+      const manualStore   = document.getElementById('manualStore');
       if (manualPrimary) manualPrimary.href = (isAndroid && !isAndroidWebView) ? intentUrl(PHONE, TEXT) : apiUrl(PHONE, TEXT);
       if (manualStore)   manualStore.href   = storeUrl();
-  
-      // --- Auto-Redirect-Logik ---
+
+      // --- Auto-Redirect-Strategie ---
       if (isAndroidWebView) {
-        // Im Android-WebView KEIN intent:// → stattdessen Web-Flow
-        location.replace(apiUrl(PHONE, TEXT));
+        // In-App-Android-WebView mag intent:// nicht. Versuche zuerst externen Tab.
+        const target = apiUrl(PHONE, TEXT);
+        // 1) Versuch: in neuem Tab/Fenster (viele WebViews leiten so in Chrome aus)
+        const win = window.open(target, '_blank');
+        if (win) {
+          // Falls Popup erlaubt, verlassen wir die Seite still
+          return;
+        }
+        // 2) Fallback: gleiches Fenster
+        location.replace(target);
         return;
       }
-  
+
       if (isAndroid) {
-        // Normaler Android-Browser → intent versuchen, Fallback Play Store
+        // Normaler Android-Browser: intent direkt
         const tryIntent = intentUrl(PHONE, TEXT);
         const fallbackTimer = setTimeout(function(){ location.replace(storeUrl()); }, 1500);
-        try { location.replace(tryIntent); } catch(_) {
+        try { location.replace(tryIntent); }
+        catch(_) {
           clearTimeout(fallbackTimer);
           location.replace(storeUrl());
         }
         setTimeout(function(){ try{ clearTimeout(fallbackTimer); }catch(e){} }, 3500);
         return;
       }
-  
+
       // iOS & andere
       location.replace(apiUrl(PHONE, TEXT));
     })();
-  </script> 
+  </script>
 </body>
 </html>
