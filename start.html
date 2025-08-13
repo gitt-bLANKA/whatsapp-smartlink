@@ -30,16 +30,16 @@
 
   <script>
     (function(){
-      // --- Helper ---
       const U = navigator.userAgent || '';
       const isAndroid = /Android/i.test(U);
       const isiOS     = /iPhone|iPad|iPod/i.test(U);
+      // Android-WebView-Erkennung: "; wv)" oder typische WebView-Signatur
+      const isAndroidWebView = isAndroid && (/; wv\)/i.test(U) || /Version\/[\d.]+\s*Chrome\/[\d.]+\s*Mobile\s*Safari\/[\d.]+/i.test(U));
+  
       const qs = new URLSearchParams(location.search);
-
-      // --- Config (defaults overridable via query) ---
       const PHONE = (qs.get('phone') || '4915170086074').replace(/\s|\+/g,'');
       const TEXT  = (qs.get('text')  || '').trim();
-
+  
       function apiUrl(phone, text){
         const base = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(phone);
         return text ? base + '&text=' + encodeURIComponent(text) : base;
@@ -53,34 +53,35 @@
         if (isiOS)     return 'https://apps.apple.com/app/whatsapp-messenger/id310633997';
         return 'https://www.whatsapp.com/download';
       }
-
-      // Set manual links for tap-if-fail
-      const manualPrimary = document.getElementById('manualPrimary');
-      const manualStore   = document.getElementById('manualStore');
-      manualPrimary.href  = isAndroid ? intentUrl(PHONE, TEXT) : apiUrl(PHONE, TEXT);
-      manualStore.href    = storeUrl();
-
-      // --- Auto-redirect logic ---
-      // ANDROID: try intent -> if not handled, open Play Store as fallback
+  
+      // Manuelle Fallback-Links setzen (falls vorhanden)
+      var manualPrimary = document.getElementById('manualPrimary');
+      var manualStore   = document.getElementById('manualStore');
+      if (manualPrimary) manualPrimary.href = (isAndroid && !isAndroidWebView) ? intentUrl(PHONE, TEXT) : apiUrl(PHONE, TEXT);
+      if (manualStore)   manualStore.href   = storeUrl();
+  
+      // --- Auto-Redirect-Logik ---
+      if (isAndroidWebView) {
+        // Im Android-WebView KEIN intent:// → stattdessen Web-Flow
+        location.replace(apiUrl(PHONE, TEXT));
+        return;
+      }
+  
       if (isAndroid) {
+        // Normaler Android-Browser → intent versuchen, Fallback Play Store
         const tryIntent = intentUrl(PHONE, TEXT);
-        // Fallback after 1500ms to Play Store (if intent wasn't handled)
         const fallbackTimer = setTimeout(function(){ location.replace(storeUrl()); }, 1500);
-        try {
-          location.replace(tryIntent);
-        } catch(_) {
-          // If replace throws, go to store immediately
+        try { location.replace(tryIntent); } catch(_) {
           clearTimeout(fallbackTimer);
           location.replace(storeUrl());
         }
-        // Safety clear to avoid leaving timer running if app took over
         setTimeout(function(){ try{ clearTimeout(fallbackTimer); }catch(e){} }, 3500);
         return;
       }
-
-      // iOS & others: go via api.whatsapp.com (opens app if installed)
+  
+      // iOS & andere
       location.replace(apiUrl(PHONE, TEXT));
     })();
-  </script>
+  </script> 
 </body>
 </html>
