@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WhatsApp Smart Redirect</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <style>
+    :root { --bg:#0b1220; --text:#e6eefb; --muted:#9db0cc; --link:#9cc0ff }
+    html,body{height:100%}
+    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial; background:var(--bg); color:var(--text); display:grid; place-items:center}
+    main{max-width:720px; padding:24px; text-align:center}
+    a{color:var(--link)}
+    .muted{color:var(--muted); font-size:.95rem}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Weiterleitung zu WhatsApp…</h1>
+    <p class="muted">Falls nichts passiert, nutze einen der folgenden Links:</p>
+    <p>
+      <a id="manualPrimary" href="https://api.whatsapp.com/send?phone=4915170086074" rel="noopener">Primärer Link öffnen</a> ·
+      <a id="manualStore" href="#" rel="noopener" target="_blank">App installieren</a>
+    </p>
+    <noscript>
+      <p>JavaScript ist deaktiviert. Öffne stattdessen: <br>
+      <a href="https://api.whatsapp.com/" rel="noopener">https://api.whatsapp.com/</a></p>
+    </noscript>
+  </main>
+
+  <script>
+    (function(){
+      // --- Helper ---
+      const U = navigator.userAgent || '';
+      const isAndroid = /Android/i.test(U);
+      const isiOS     = /iPhone|iPad|iPod/i.test(U);
+      const qs = new URLSearchParams(location.search);
+
+      // --- Config (defaults overridable via query) ---
+      const PHONE = (qs.get('phone') || '4915170086074').replace(/\s|\+/g,'');
+      const TEXT  = (qs.get('text')  || '').trim();
+
+      function apiUrl(phone, text){
+        const base = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(phone);
+        return text ? base + '&text=' + encodeURIComponent(text) : base;
+      }
+      function intentUrl(phone, text){
+        const q = 'phone=' + encodeURIComponent(phone) + (text ? '&text=' + encodeURIComponent(text) : '');
+        return 'intent://send?' + q + '#Intent;scheme=whatsapp;package=com.whatsapp;end';
+      }
+      function storeUrl(){
+        if (isAndroid) return 'https://play.google.com/store/apps/details?id=com.whatsapp';
+        if (isiOS)     return 'https://apps.apple.com/app/whatsapp-messenger/id310633997';
+        return 'https://www.whatsapp.com/download';
+      }
+
+      // Set manual links for tap-if-fail
+      const manualPrimary = document.getElementById('manualPrimary');
+      const manualStore   = document.getElementById('manualStore');
+      manualPrimary.href  = isAndroid ? intentUrl(PHONE, TEXT) : apiUrl(PHONE, TEXT);
+      manualStore.href    = storeUrl();
+
+      // --- Auto-redirect logic ---
+      // ANDROID: try intent -> if not handled, open Play Store as fallback
+      if (isAndroid) {
+        const tryIntent = intentUrl(PHONE, TEXT);
+        // Fallback after 1500ms to Play Store (if intent wasn't handled)
+        const fallbackTimer = setTimeout(function(){ location.replace(storeUrl()); }, 1500);
+        try {
+          location.replace(tryIntent);
+        } catch(_) {
+          // If replace throws, go to store immediately
+          clearTimeout(fallbackTimer);
+          location.replace(storeUrl());
+        }
+        // Safety clear to avoid leaving timer running if app took over
+        setTimeout(function(){ try{ clearTimeout(fallbackTimer); }catch(e){} }, 3500);
+        return;
+      }
+
+      // iOS & others: go via api.whatsapp.com (opens app if installed)
+      location.replace(apiUrl(PHONE, TEXT));
+    })();
+  </script>
+</body>
+</html>
